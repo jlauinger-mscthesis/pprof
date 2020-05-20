@@ -132,6 +132,25 @@ func TestFunctionAssembly(t *testing.T) {
 				{Addr: 0x2001, Text: "instruction two"},
 			},
 		},
+		{
+			plugin.Sym{Name: []string{"_main"}, Start: 0x30000, End: 0x3FFF},
+			`_main:
+; /tmp/hello.c:3
+30001:	push   %rbp`,
+			[]plugin.Inst{
+				{Addr: 0x30001, Text: "push   %rbp", Function: "_main", File: "/tmp/hello.c", Line: 3},
+			},
+		},
+		{
+			plugin.Sym{Name: []string{"main"}, Start: 0x4000, End: 0x4FFF},
+			`000000000040052d <main>:
+main():
+/tmp/hello.c:3
+40001:	push   %rbp`,
+			[]plugin.Inst{
+				{Addr: 0x40001, Text: "push   %rbp", Function: "main", File: "/tmp/hello.c", Line: 3},
+			},
+		},
 	}
 
 	for _, tc := range testcases {

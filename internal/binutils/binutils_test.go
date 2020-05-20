@@ -189,6 +189,11 @@ func skipUnlessDarwinAmd64(t *testing.T) {
 }
 
 func testDisasm(t *testing.T, intelSyntax bool) {
+	_, llvmObjdump, buObjdump := findObjdump([]string{""})
+	if !(llvmObjdump || buObjdump) {
+		t.Skip("Cannot find usable objdump")
+	}
+
 	bu := &Binutils{}
 	testexe := "exe_linux_64"
 	if runtime.GOOS == "darwin" {
@@ -202,6 +207,7 @@ func testDisasm(t *testing.T, intelSyntax bool) {
 	mainCount := 0
 	for _, x := range insts {
 		if x.Function == "main" || x.Function == "_main" {
+			// Mac binaries have a leading underscore.
 			mainCount++
 		}
 	}
@@ -406,5 +412,82 @@ func TestOpenMalformedMachO(t *testing.T) {
 
 	if !strings.Contains(err.Error(), "Mach-O") {
 		t.Errorf("Open: got %v, want error containing 'Mach-O'", err)
+	}
+}
+
+func TestObjdumpVersionChecks(t *testing.T) {
+	// Test that the objdump version strings are parsed properly.
+
+	var version string
+	if runtime.GOOS == "darwin" {
+		// Valid Apple LLVM version string with usable version.
+		version = `Apple LLVM version 11.0.3 (clang-1103.0.32.62)
+		Optimized build.
+		Default target: x86_64-apple-darwin19.4.0
+		Host CPU: skylake`
+		if runtime.GOOS == "darwin" && !isLLVMObjdump(version) {
+			t.Errorf("Valid Apple LLVM version string for isLLVMObjdump: got false, want true")
+		}
+
+		// Valid Apple LLVM version string with unusable version.
+		version = `Apple LLVM version 10.0.0 (clang-1000.11.45.5)
+		Optimized build.
+		Default target: x86_64-apple-darwin19.4.0
+		Host CPU: skylake`
+		if runtime.GOOS == "darwin" && isLLVMObjdump(version) {
+			t.Errorf("Unusable Apple LLVM version for isLLVMObjdump: got true, want false")
+		}
+
+		// Invalid Apple LLVM version string with usable version.
+		version = `Apple LLVM versions 11.0.3 (clang-1103.0.32.62)
+		Optimized build.
+		Default target: x86_64-apple-darwin19.4.0
+		Host CPU: skylake`
+		if runtime.GOOS == "darwin" && isLLVMObjdump(version) {
+			t.Errorf("Invalid Apple LLVM version string for isLLVMObjdump: got true, want false")
+		}
+	}
+
+	if runtime.GOOS == "linux" {
+		// Valid LLVM version string with usable version.
+		version = `LLVM (http://llvm.org/):
+		LLVM version 9.0.1
+  
+		Optimized build.`
+		if runtime.GOOS == "linux" && !isLLVMObjdump(version) {
+			t.Errorf("Valid LLVM version string for isLLVMObjdump: got false, want true")
+		}
+
+		// Valid LLVM version string with unusable version.
+		version = `LLVM (http://llvm.org/):
+		LLVM version 6.0.1
+  
+		Optimized build.`
+		if runtime.GOOS == "linux" && isLLVMObjdump(version) {
+			t.Errorf("Unusable LLVM version for isLLVMObjdump: got true, want false")
+		}
+
+		// Invalid LLVM version string with usable version.
+		version = `LLVM (http://llvm.org/):
+		LLVM versions 9.0.1
+  
+		Optimized build.`
+		if runtime.GOOS == "linux" && isLLVMObjdump(version) {
+			t.Errorf("Invalid LLVM version string for isLLVMObjdump: got true, want false")
+		}
+	}
+
+	// Valid GNU objdump version string.
+	version = `GNU objdump (GNU Binutils) 2.34
+	Copyright (C) 2020 Free Software Foundation, Inc.`
+	if !isBuObjdump(version) {
+		t.Errorf("Valid GNU objdump version string for isBuObjdump: got false, want true")
+	}
+
+	// Invalid GNU objdump version string.
+	version = `GNU objdump (GNU Banutils) 2.34
+	Copyright (C) 2020 Free Software Foundation, Inc.`
+	if isBuObjdump(version) {
+		t.Errorf("Invalid GNU objdump version string for isBuObjdump: got true, want false")
 	}
 }
